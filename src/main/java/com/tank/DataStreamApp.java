@@ -1,17 +1,17 @@
 package com.tank;
 
 
-import com.ververica.cdc.connectors.mysql.source.MySqlSource;
-import com.ververica.cdc.debezium.JsonDebeziumDeserializationSchema;
+import com.ververica.cdc.connectors.mysql.MySqlSource;
+import com.ververica.cdc.connectors.mysql.table.StartupOptions;
+import com.ververica.cdc.debezium.DebeziumSourceFunction;
+import com.ververica.cdc.debezium.StringDebeziumDeserializationSchema;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.experimental.Accessors;
-import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.functions.MapFunction;
+import lombok.val;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 
 /**
@@ -20,29 +20,23 @@ import java.time.LocalDateTime;
 public class DataStreamApp {
   @SneakyThrows
   public static void main(String[] args) {
-    var source = MySqlSource.<String>builder()
-        .connectTimeout(Duration.ofSeconds(3L))
+    DebeziumSourceFunction<String> source = MySqlSource.<String>builder()
         .hostname("tank")
         .port(3306)
         .username("root")
         .password("123")
         .databaseList("customer_db")
-        .tableList("tab_customers")
-        .deserializer(new JsonDebeziumDeserializationSchema())
+        .tableList("customer_db.tab_member_score")
+        .startupOptions(StartupOptions.latest())
+        .deserializer(new StringDebeziumDeserializationSchema())
         .build();
 
-    var env = StreamExecutionEnvironment.getExecutionEnvironment();
-    env.enableCheckpointing(3000);
-    var dataStream = env.fromSource(source, WatermarkStrategy.noWatermarks(), "member-score-cdc");
+    val env = StreamExecutionEnvironment.getExecutionEnvironment();
+    env.enableCheckpointing(3000).setParallelism(1);
 
-    dataStream.map(new MapFunction<String, String>() {
+    env.addSource(source).print();
 
-      @Override
-      public String map(String s) throws Exception {
-        return s;
-      }
-    }).print();
-    env.execute("");
+    env.execute("cdc-demo");
   }
 
   @Getter
