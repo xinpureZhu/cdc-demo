@@ -16,6 +16,7 @@ import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
 import java.time.LocalDateTime;
 import java.util.Locale;
@@ -41,11 +42,11 @@ public class DataStreamApp {
     val env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.enableCheckpointing(3000).setParallelism(1);
 
-    env.addSource(source)
+    val tEnv = StreamTableEnvironment.create(env);
+
+     env.addSource(source)
         .map((MapFunction<String, DebeziumSourceModel>) json -> JSONUtil.toBean(json, DebeziumSourceModel.class))
-        .filter((FilterFunction<DebeziumSourceModel>) debeziumSourceModel -> !"d".equals(debeziumSourceModel.getOp().toLowerCase(Locale.ROOT)))
-        .map((MapFunction<DebeziumSourceModel, String>) DebeziumSourceModel::getOp)
-        .print();
+        .filter((FilterFunction<DebeziumSourceModel>) debeziumSourceModel -> !"d".equals(debeziumSourceModel.getOp().toLowerCase(Locale.ROOT)));
 
     env.execute("cdc-demo");
   }
@@ -68,3 +69,39 @@ public class DataStreamApp {
     }
   }
 }
+
+
+/**
+ * {
+ *   "before": {
+ *     "id": 1,
+ *     "member_id": "jack",
+ *     "score": 19985
+ *   },
+ *   "after": {
+ *     "id": 1,
+ *     "member_id": "jack",
+ *     "score": 19984
+ *   },
+ *   "source": {
+ *     "version": "1.5.4.Final",
+ *     "connector": "mysql",
+ *     "name": "mysql_binlog_source",
+ *     "ts_ms": 1653498663000,
+ *     "snapshot": "false",
+ *     "db": "customer_db",
+ *     "sequence": null,
+ *     "table": "tab_member_score",
+ *     "server_id": 1,
+ *     "gtid": null,
+ *     "file": "binlog.000045",
+ *     "pos": 10191,
+ *     "row": 0,
+ *     "thread": null,
+ *     "query": null
+ *   },
+ *   "op": "u",
+ *   "ts_ms": 1653498663591,
+ *   "transaction": null
+ * }
+ */
