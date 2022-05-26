@@ -15,8 +15,12 @@ import lombok.experimental.Accessors;
 import lombok.val;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
+import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.connectors.redis.RedisSink;
 import org.apache.flink.streaming.connectors.redis.common.config.FlinkJedisPoolConfig;
 import org.apache.flink.streaming.connectors.redis.common.mapper.RedisCommand;
@@ -64,6 +68,9 @@ public class DataStreamApp {
           memberScore.setUpdateTime(DateUtil.date().toLocalDateTime());
           return memberScore;
         })
+        .keyBy((KeySelector<MemberScore, String>) MemberScore::getMemberId)
+        .window(TumblingProcessingTimeWindows.of(Time.milliseconds(50)))
+        .reduce((ReduceFunction<MemberScore>) (memberScore, t1) -> memberScore.getScore() > t1.getScore() ? t1 : memberScore)
         .addSink(new RedisSink<>(redisConfig, new RedisAction()))
         .name("redis-sink");
     env.execute("cdc-demo");
