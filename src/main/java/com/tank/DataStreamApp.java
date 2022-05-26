@@ -1,6 +1,9 @@
 package com.tank;
 
 
+import cn.hutool.core.date.DateUtil;
+import cn.hutool.json.JSONUtil;
+import com.tank.model.DebeziumSourceModel;
 import com.ververica.cdc.connectors.mysql.source.MySqlSourceBuilder;
 import com.ververica.cdc.connectors.mysql.table.StartupOptions;
 import com.ververica.cdc.debezium.JsonDebeziumDeserializationSchema;
@@ -10,6 +13,7 @@ import lombok.SneakyThrows;
 import lombok.experimental.Accessors;
 import lombok.val;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 
@@ -38,7 +42,16 @@ public class DataStreamApp {
     val env = StreamExecutionEnvironment.getExecutionEnvironment();
 
     env.fromSource(source, WatermarkStrategy.noWatermarks(), "cdc-demo").setParallelism(1)
-        //.map((MapFunction<String, DebeziumSourceModel>) json -> JSONUtil.toBean(json, DebeziumSourceModel.class))
+        .map((MapFunction<String, DebeziumSourceModel>) json -> JSONUtil.toBean(json, DebeziumSourceModel.class))
+        .map(model -> {
+          val dto = model.getAfter();
+          val memberScore = new MemberScore();
+          memberScore.setScore(dto.getScore());
+          memberScore.setMemberId(dto.getMemberId());
+          memberScore.setUpdateTime(DateUtil.date().toLocalDateTime());
+          return memberScore;
+        })
+        .map(MemberScore::toString)
         .print("console").setParallelism(1);
 
     env.execute("cdc-demo");
@@ -52,13 +65,22 @@ public class DataStreamApp {
 
     @JsonProperty("member_id")
     private String memberId;
-    private Long score;
+    private Integer score;
     private LocalDateTime updateTime;
 
     @Override
     public int compareTo(MemberScore memberScore) {
       return memberScore.getUpdateTime().isAfter(memberScore.getUpdateTime()) ? 1 :
           memberScore.getUpdateTime().isEqual(memberScore.getUpdateTime()) ? 0 : -1;
+    }
+
+    @Override
+    public String toString() {
+      return "MemberScore{" +
+          "memberId='" + memberId + '\'' +
+          ", score=" + score +
+          ", updateTime=" + updateTime +
+          '}';
     }
   }
 }
