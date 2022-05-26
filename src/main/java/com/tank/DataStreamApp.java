@@ -2,6 +2,7 @@ package com.tank;
 
 
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.tank.model.DebeziumSourceModel;
 import com.ververica.cdc.connectors.mysql.source.MySqlSourceBuilder;
@@ -14,8 +15,14 @@ import lombok.experimental.Accessors;
 import lombok.val;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.connectors.redis.RedisSink;
+import org.apache.flink.streaming.connectors.redis.common.config.FlinkJedisPoolConfig;
+import org.apache.flink.streaming.connectors.redis.common.mapper.RedisCommand;
+import org.apache.flink.streaming.connectors.redis.common.mapper.RedisCommandDescription;
+import org.apache.flink.streaming.connectors.redis.common.mapper.RedisMapper;
 
 import java.time.LocalDateTime;
 
@@ -25,10 +32,16 @@ import java.time.LocalDateTime;
 public class DataStreamApp {
   @SneakyThrows
   public static void main(String[] args) {
+
+
+    val redisConfig = new FlinkJedisPoolConfig.Builder()
+        .setDatabase(1).setHost("tank").setPort(6379).setTimeout(30000).build();
+
     val mySqlSourceBuilder = new MySqlSourceBuilder<String>();
     val source = mySqlSourceBuilder
         .hostname("tank")
         .includeSchemaChanges(true)
+        .connectionPoolSize(4)
         .port(3306)
         .username("root")
         .password("123")
@@ -51,9 +64,14 @@ public class DataStreamApp {
           memberScore.setUpdateTime(DateUtil.date().toLocalDateTime());
           return memberScore;
         })
-        .map(MemberScore::toString)
-        .print("console").setParallelism(1);
+        .map(new MapFunction<MemberScore, Tuple2<String, String>>() {
 
+          @Override
+          public Tuple2<String, String> map(MemberScore memberScore) throws Exception {
+            return Tuple2.of(memberScore.memberId, String.valueOf(memberScore.getScore()));
+          }
+        })
+        .addSink(new RedisSink<>(redisConfig, new RedisAction()));
     env.execute("cdc-demo");
   }
 
@@ -83,6 +101,27 @@ public class DataStreamApp {
           '}';
     }
   }
+
+
+  private static class RedisAction implements RedisMapper<Tuple2<String, String>> {
+
+
+    @Override
+    public RedisCommandDescription getCommandDescription() {
+      return new RedisCommandDescription(RedisCommand.SET);
+    }
+
+    @Override
+    public String getKeyFromData(Tuple2<String, String> stringStringTuple2) {
+      return StrUtil.format("{}:score", stringStringTuple2.f0);
+    }
+
+    @Override
+    public String getValueFromData(Tuple2<String, String> stringStringTuple2) {
+      return stringStringTuple2.f1;
+    }
+  }
+
 }
 
 
