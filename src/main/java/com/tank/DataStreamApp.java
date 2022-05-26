@@ -15,7 +15,6 @@ import lombok.experimental.Accessors;
 import lombok.val;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.redis.RedisSink;
@@ -54,7 +53,8 @@ public class DataStreamApp {
 
     val env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-    env.fromSource(source, WatermarkStrategy.noWatermarks(), "cdc-demo").setParallelism(1)
+    env.fromSource(source, WatermarkStrategy.noWatermarks(), "cdc-demo")
+        .setParallelism(1)
         .map((MapFunction<String, DebeziumSourceModel>) json -> JSONUtil.toBean(json, DebeziumSourceModel.class))
         .map(model -> {
           val dto = model.getAfter();
@@ -64,14 +64,8 @@ public class DataStreamApp {
           memberScore.setUpdateTime(DateUtil.date().toLocalDateTime());
           return memberScore;
         })
-        .map(new MapFunction<MemberScore, Tuple2<String, String>>() {
-
-          @Override
-          public Tuple2<String, String> map(MemberScore memberScore) throws Exception {
-            return Tuple2.of(memberScore.memberId, String.valueOf(memberScore.getScore()));
-          }
-        })
-        .addSink(new RedisSink<>(redisConfig, new RedisAction()));
+        .addSink(new RedisSink<>(redisConfig, new RedisAction()))
+        .name("redis-sink");
     env.execute("cdc-demo");
   }
 
@@ -103,7 +97,7 @@ public class DataStreamApp {
   }
 
 
-  private static class RedisAction implements RedisMapper<Tuple2<String, String>> {
+  private static class RedisAction implements RedisMapper<MemberScore> {
 
 
     @Override
@@ -112,13 +106,13 @@ public class DataStreamApp {
     }
 
     @Override
-    public String getKeyFromData(Tuple2<String, String> stringStringTuple2) {
-      return StrUtil.format("{}:score", stringStringTuple2.f0);
+    public String getKeyFromData(MemberScore memberScore) {
+      return StrUtil.format("{}:score", memberScore.getMemberId());
     }
 
     @Override
-    public String getValueFromData(Tuple2<String, String> stringStringTuple2) {
-      return stringStringTuple2.f1;
+    public String getValueFromData(MemberScore memberScore) {
+      return String.valueOf(memberScore.getScore());
     }
   }
 
