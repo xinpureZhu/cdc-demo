@@ -57,22 +57,7 @@ public class DataStreamApp {
 
     val env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-    env.fromSource(source, WatermarkStrategy.noWatermarks(), "cdc-demo")
-        .setParallelism(1)
-        .map((MapFunction<String, DebeziumSourceModel>) json -> JSONUtil.toBean(json, DebeziumSourceModel.class))
-        .map(model -> {
-          val dto = model.getAfter();
-          val memberScore = new MemberScore();
-          memberScore.setScore(dto.getScore());
-          memberScore.setMemberId(dto.getMemberId());
-          memberScore.setUpdateTime(DateUtil.date().toLocalDateTime());
-          return memberScore;
-        })
-        .keyBy((KeySelector<MemberScore, String>) MemberScore::getMemberId)
-        .window(TumblingProcessingTimeWindows.of(Time.milliseconds(50)))
-        .reduce((ReduceFunction<MemberScore>) (memberScore, t1) -> memberScore.getScore() > t1.getScore() ? t1 : memberScore)
-        .addSink(new RedisSink<>(redisConfig, new RedisAction()))
-        .name("redis-sink");
+    
     env.execute("cdc-demo");
   }
 
