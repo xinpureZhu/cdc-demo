@@ -25,13 +25,13 @@ public class DataStreamApp {
     val tableEnv = StreamTableEnvironment.create(env, settings);
 
     val sourceTabMembersSql = StrUtil.format("create table  tab_members_v1 (`id` BIGINT primary key  NOT ENFORCED , name String ,birthDay String ) {}",
-        withTableInfo("127.0.0.1", "k8s_demo_v1", "root", "123", "tab_members"));
+        withTableInfo("mysql", "k8s_demo_v1", "root", "123", "tab_members"));
 
     tableEnv.executeSql(sourceTabMembersSql);
 
     val targetTabMembersSql = "create table tab_members_v2 (`id` BIGINT primary key  NOT ENFORCED , name String ,birthDay String ) WITH (" +
-        "    'connector' = 'jdbc',\n" +
-        "    'url' = 'jdbc:mysql://127.0.0.1:3306/k8s_demo_v2',\n" +
+        "    'connector' = 'jdbc'," +
+        "    'url' = 'jdbc:mysql://mysql:3306/k8s_demo_v2',\n" +
         "    'username'= 'root'," +
         "    'password'= '123'," +
         "    'table-name' = 'tab_members'" +
@@ -40,7 +40,7 @@ public class DataStreamApp {
     tableEnv.executeSql(targetTabMembersSql);
 
 
-    val result = tableEnv.sqlQuery("select id, name, DATE_FORMAT(birthDay, 'yyyy-MM-dd') as birthDay from tab_members_v1");
+    val result = tableEnv.sqlQuery("select id, name,  birthDay from tab_members_v1");
     result.select($("id"), $("name"), $("birthDay")).executeInsert("tab_members_v2", false);
 
     val retractStream = tableEnv.toRetractStream(result, Row.class);
@@ -67,22 +67,4 @@ public class DataStreamApp {
 
 }
 
-
-/**
- * CREATE TABLE sbtest1 (
- * id INT,
- * k INT,
- * c STRING,
- * pad STRING
- * ) WITH (
- * 'connector' = 'mysql-cdc',
- * 'hostname' = '197.XXX.XXX.XXX',
- * 'port' = '3306',
- * 'username' = 'debezium',
- * 'password' = 'PASSWORD',
- * 'database-name' = 'cdcdb',
- * 'table-name' = 'sbtest1',
- * 'debezium.snapshot.mode' = 'initial'
- * );
- */
 
