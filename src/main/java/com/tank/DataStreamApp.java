@@ -1,9 +1,14 @@
 package com.tank;
 
 
+import cn.hutool.core.lang.Console;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.core.util.SystemPropsUtil;
 import cn.hutool.setting.dialect.Props;
 import cn.hutool.setting.dialect.PropsUtil;
+import com.tank.model.SourceModel;
+import com.tank.model.TargetModel;
+import com.tank.util.ModelUtil;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -20,7 +25,23 @@ import static org.apache.flink.table.api.Expressions.$;
 public class DataStreamApp {
   @SneakyThrows
   public static void main(@NonNull String[] args) {
-   
+
+    val sourceModel = new ModelUtil("source.yml").convertTo(SourceModel.class);
+    val sourceModelSource = sourceModel.getSource();
+    sourceModelSource.setUsername(SystemPropsUtil.get("sourceDbUsername"));
+    sourceModelSource.setPassword(SystemPropsUtil.get("sourcePassword"));
+    sourceModelSource.setDbName(SystemPropsUtil.get("sourceDbName"));
+
+    Console.log("source db info:[{}]", sourceModel.toString());
+
+    val targetModel = new ModelUtil("source.yml").convertTo(TargetModel.class);
+    val targetModelSource = targetModel.getSource();
+    targetModelSource.setUsername(SystemPropsUtil.get("targetDbUsername"));
+    targetModelSource.setPassword(SystemPropsUtil.get("targetPassword"));
+    targetModelSource.setDbName(SystemPropsUtil.get("targetDbName"));
+
+    Console.log("targetModel db info:[{}]", targetModel.toString());
+
     val env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.setParallelism(1);
     val settings = EnvironmentSettings.newInstance().useBlinkPlanner().inStreamingMode().build();
