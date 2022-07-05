@@ -2,6 +2,8 @@ package com.tank;
 
 
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.setting.dialect.Props;
+import cn.hutool.setting.dialect.PropsUtil;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -18,7 +20,7 @@ import static org.apache.flink.table.api.Expressions.$;
 public class DataStreamApp {
   @SneakyThrows
   public static void main(@NonNull String[] args) {
-
+   
     val env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.setParallelism(1);
     val settings = EnvironmentSettings.newInstance().useBlinkPlanner().inStreamingMode().build();
